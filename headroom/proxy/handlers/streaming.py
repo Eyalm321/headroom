@@ -13,7 +13,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from headroom.proxy.auth_mode import classify_client, supports_mid_turn_coalescing
-from headroom.proxy.handlers._debug_dump import _debug_dump_mode, _redact_debug_value
+from headroom.proxy.handlers._debug_dump import write_upstream_error_dump
 from headroom.proxy.helpers import (
     RETRYABLE_OVERLOAD_STATUSES,
     jitter_delay_ms,
@@ -1453,37 +1453,17 @@ class StreamingMixin:
             # streaming turn (Claude Code streams every request, so the most
             # common 400s were invisible). Same gating: OFF by default, never
             # in stateless mode, content redacted unless HEADROOM_DEBUG_DUMP=full.
-            _dump_mode = _debug_dump_mode(getattr(self, "config", None))
-            if _dump_mode != "off":
-                try:
-                    from datetime import datetime as _dt
-
-                    from headroom import paths as _hr_paths
-
-                    _dump_dir = _hr_paths.debug_400_dir()
-                    _dump_dir.mkdir(parents=True, exist_ok=True)
-                    _dump_body = body if _dump_mode == "full" else _redact_debug_value(body)
-                    _dump_path = (
-                        _dump_dir / f"{_dt.now().strftime('%Y%m%d_%H%M%S')}_{request_id}.json"
-                    )
-                    _dump_path.write_text(
-                        json.dumps(
-                            {
-                                "request_id": request_id,
-                                "url": url,
-                                "status": upstream_response.status_code,
-                                "provider": provider,
-                                "model": model,
-                                "stream": True,
-                                "transforms": transforms_applied,
-                                "body": _dump_body,
-                            },
-                            indent=2,
-                            default=str,
-                        )
-                    )
-                except Exception:
-                    logger.debug("streaming debug dump skipped", exc_info=True)
+            write_upstream_error_dump(
+                getattr(self, "config", None),
+                request_id=request_id,
+                url=url,
+                status=upstream_response.status_code,
+                provider=provider,
+                model=model,
+                body=body,
+                transforms=transforms_applied,
+                stream=True,
+            )
 
             response_headers = dict(upstream_response.headers)
             response_headers.pop("content-length", None)
