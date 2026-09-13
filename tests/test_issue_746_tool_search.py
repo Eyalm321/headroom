@@ -466,7 +466,7 @@ def test_repair_keeps_a_turn_that_was_only_bookkeeping() -> None:
     # An assistant turn that was ONLY the search round-trip keeps its message
     # slot (an all-text turn is valid, an empty content array is not). Dropping
     # the message would shift every later message index and so move any signed
-    # thinking block, which makes select_outbound_body discard the repair (#3372).
+    # thinking block, which makes select_outbound_body discard the repair (#3456).
     transcript = _poisoned_transcript()
     transcript[1]["content"] = transcript[1]["content"][1:3]
     messages, removed = strip_unsupported_tool_search_blocks(transcript, [])
@@ -655,7 +655,7 @@ def test_repair_drops_when_referenced_tool_absent_despite_search_tool_present() 
 
 
 def test_repair_does_not_move_signed_thinking_blocks() -> None:
-    # Production failure (#3372): the unsupportable block sat in the SAME
+    # Production failure (#3456): the unsupportable block sat in the SAME
     # assistant message as signed thinking blocks. Removing it moved the
     # thinking block that followed it, thinking_blocks_survived_mutation went
     # False, and select_outbound_body forwarded the client's ORIGINAL bytes --

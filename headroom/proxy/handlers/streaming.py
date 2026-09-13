@@ -1453,6 +1453,9 @@ class StreamingMixin:
             # streaming turn (Claude Code streams every request, so the most
             # common 400s were invisible). Same gating: OFF by default, never
             # in stateless mode, content redacted unless HEADROOM_DEBUG_DUMP=full.
+            # Dump the bytes that went on the wire, not ``body``: when the edits
+            # are dropped (source="passthrough") ``body`` shows a request that
+            # never left the proxy.
             write_upstream_error_dump(
                 getattr(self, "config", None),
                 request_id=request_id,
@@ -1460,7 +1463,8 @@ class StreamingMixin:
                 status=upstream_response.status_code,
                 provider=provider,
                 model=model,
-                body=body,
+                body=outbound_bytes,
+                body_source=outbound_source,
                 transforms=transforms_applied,
                 stream=True,
             )

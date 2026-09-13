@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -173,6 +174,55 @@ def test_upstream_dump_serializes_non_json_values(dump_dir, monkeypatch):
     path = _write(body={"when": object()})
     assert path is not None
     assert "object object" in json.loads(path.read_text())["body"]["when"]
+
+
+@pytest.mark.parametrize("mode", ["1", "full"])
+def test_upstream_dump_never_writes_url_credentials(dump_dir, monkeypatch, mode):
+    # Gemini streaming URLs carry the API key as ``?key=``; ``full`` opts in to
+    # prompt content, not to credentials, so the query is dropped in every mode.
+    monkeypatch.setenv("HEADROOM_DEBUG_DUMP", mode)
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini:streamGenerateContent"
+        "?alt=sse&key=AIzaSECRET"
+    )
+    path = _write(url=url, provider="gemini")
+    assert path is not None
+    text = path.read_text()
+    assert "AIzaSECRET" not in text
+    assert json.loads(text)["url"] == (
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini:streamGenerateContent"
+        "?<redacted>"
+    )
+
+
+def test_upstream_dump_keeps_query_free_url(dump_dir, monkeypatch):
+    monkeypatch.setenv("HEADROOM_DEBUG_DUMP", "full")
+    path = _write()
+    assert json.loads(path.read_text())["url"] == "https://api.anthropic.com/v1/messages"
+
+
+def test_upstream_dump_records_the_bytes_actually_sent(dump_dir, monkeypatch):
+    # When the proxy's edits are dropped (passthrough), the dump must show the
+    # body that went on the wire, not the edited one that never left.
+    monkeypatch.setenv("HEADROOM_DEBUG_DUMP", "full")
+    sent = json.dumps({"messages": [{"role": "user", "content": "as sent"}]}).encode()
+    path = _write(body=sent, body_source="passthrough")
+    payload = json.loads(path.read_text())
+    assert payload["body"]["messages"][0]["content"] == "as sent"
+    assert payload["body_source"] == "passthrough"
+
+
+def test_upstream_dump_tolerates_non_json_bytes(dump_dir, monkeypatch):
+    monkeypatch.setenv("HEADROOM_DEBUG_DUMP", "full")
+    path = _write(body=b"\x00\x01not json")
+    assert json.loads(path.read_text())["body"] == "<10 bytes, not JSON>"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_upstream_dump_is_owner_only(dump_dir, monkeypatch):
+    monkeypatch.setenv("HEADROOM_DEBUG_DUMP", "full")
+    path = _write()
+    assert path.stat().st_mode & 0o777 == 0o600
 
 
 def test_upstream_dump_never_raises_when_write_fails(monkeypatch):

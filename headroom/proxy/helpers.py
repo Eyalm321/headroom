@@ -3276,7 +3276,7 @@ def strip_unsupported_tool_search_blocks(messages: Any, tools: Any) -> tuple[Any
     shapes Anthropic rejects. Both the ``tool_search_tool_result`` and its paired
     ``server_tool_use`` are handled (an orphan of either 400s on its own).
 
-    Replace in place rather than remove (#3372). The block indexes of a message
+    Replace in place rather than remove (#3456). The block indexes of a message
     are load-bearing: ``thinking_block_fingerprint`` keys a signed thinking block
     by ``(message_index, block_index)``, so deleting a block that sits BEFORE a
     thinking block in the same message — or deleting a whole message ahead of one —
